@@ -1,4 +1,4 @@
-📌 Situação atual
+### 📌 Situação atual
 
 * Cada usuário já tem login de rede (AD/Windows Server 2012).
   
@@ -123,7 +123,6 @@ O ponto que precisamos ver é o **Outbound NAT**, porque é nele que o pfSense e
 
 1. Vá no menu: Firewall > NAT > Saída (Outbound)
   
-
 2. Você verá três opções de modo NAT:
   
   * **Automatic Outbound NAT** → padrão, mascara tudo em um IP só.
@@ -257,12 +256,8 @@ Que o Fortinet enxergue os **IPs reais** (10.4.0.33, 10.5.0.10, etc.), para pode
 
 * Vai listar as **regras NAT atuais**.
   
-* Normalmente você verá entradas assim:
+* Normalmente você verá entradas assim: Interface: WAN Source: 10.4.0.0/24 Translation / Target: WAN address
   
-
-    Interface: WAN
-    Source: 10.4.0.0/24
-    Translation / Target: WAN address
 
 👉 Essas são justamente as regras que fazem com que tudo da sua rede LAN (10.4.0.x) saia NATeado pelo IP da WAN.
 
@@ -306,17 +301,13 @@ O que você está vendo aí são **as regras NAT automáticas que o pfSense gero
 
 ### 🔎 Regras que aparecem:
 
-1. **Regra ISAKMP (porta 500)** Interface: WAN Source: 10.4.0.0/23, 10.0.0.0/24 Destino porta 500 NAT: WAN address
+1. **Regra ISAKMP (porta 500)** Interface: WAN Source: 10.4.0.0/23, 10.0.0.0/24 Destino porta 500 NAT: WAN address👉 Essa regra é criada para **IPsec VPN (ISAKMP/IKE na porta 500 UDP)**.Se você não usa IPsec (VPN site-to-site ou cliente VPN IPsec), ela não é necessária.
   
-
-👉 Essa regra é criada para **IPsec VPN (ISAKMP/IKE na porta 500 UDP)**. Se você não usa IPsec (VPN site-to-site ou cliente VPN IPsec), ela não é necessária.
 
 * * *
 
-2. **Regra NAT padrão** Interface: WAN Source: 10.4.0.0/23, 10.0.0.0/24 NAT: WAN address
+2. **Regra NAT padrão** Interface: WAN Source: 10.4.0.0/23, 10.0.0.0/24 NAT: WAN address👉 Essa é a regra que **traduziu toda a rede interna para o IP da WAN**.É ela que está “escondendo” todos atrás de **200.196.184.130**.
   
-
-👉 Essa é a regra que **traduziu toda a rede interna para o IP da WAN**. É ela que está “escondendo” todos atrás de **200.196.184.130**.
 
 * * *
 
@@ -688,7 +679,9 @@ No modo Manual, o pfSense processa as regras de NAT de Saída **de cima para bai
 * **Arraste sua nova regra** de `10.4.0.0/23` com a opção "Não faça NAT" marcada para o **topo da lista** de regras de _Outbound NAT_.
   
 
-Ao fazer isso, o tráfego das suas redes internas **corresponderá à primeira regra**, será excluído do NAT de Saída e os IPs reais (10.x.x.x) serão enviados ao Fortinet. Todo o restante do tráfego seguirá pelas regras padrão abaixo e continuará sendo NATeado normalmente. Muito obrigado por enviar as imagens! Elas confirmam que você está no **pfSense** e mostram exatamente onde o problema acontece.
+Ao fazer isso, o tráfego das suas redes internas **corresponderá à primeira regra**, será excluído do NAT de Saída e os IPs reais (10.x.x.x) serão enviados ao Fortinet. Todo o restante do tráfego seguirá pelas regras padrão abaixo e continuará sendo NATeado normalmente.
+
+Muito obrigado por enviar as imagens! Elas confirmam que você está no **pfSense** e mostram exatamente onde o problema acontece.
 
 Como você está no pfSense, a solução para o campo **Destino** não aceitar o valor **"Qualquer"** é simples, mas requer uma pequena mudança de tipo, forçando-o a aceitar a sintaxe de rede.
 
@@ -924,7 +917,9 @@ O que falta para as regras entrarem em vigor é exatamente o que o aviso em verd
 
 Ao aplicar as mudanças no modo **Manual**, suas 4 regras de "NO NAT" (que já estão no topo da lista) serão ativadas, a mãozinha vermelha sumirá, e o pfSense começará a enviar o tráfego com os IPs reais para o Fortinet.
 
----
+* * *
+
+* * *
 
 Essa é uma ótima pergunta, e é crucial para entender como o pfSense está funcionando neste momento!
 
@@ -982,3 +977,811 @@ Ao aplicar as mudanças no modo Manual, você verá o seguinte:
   
 
 Neste ponto, suas 4 regras de **"NO NAT"** estarão no topo e em vigor, e o Fortinet passará a ver os IPs internos dos seus usuários.
+
+* * *
+
+Perfeito, agora entendi 100% seu cenário 👌
+
+📌 O desenho é este: [Internet] ⇄ [Fortinet - autenticação individual] ⇄ [pfSense] ⇄ [Rede interna]
+
+Ou seja:
+
+* **Fortinet** é quem fala direto com a internet e controla **login/senha por usuário**.
+  
+* **pfSense** não pode “esconder” (NAT) os IPs internos, senão o Fortinet só veria um único IP (o do pfSense) e **não conseguiria aplicar as regras de login individual**.
+  
+* Portanto:
+  
+  * Para os **servidores/usuários que devem ser autenticados no Fortinet**, você precisa de **NO NAT** no pfSense.
+    
+  * Para qualquer outra rede que precise sair sem autenticação (ou se o Fortinet estiver configurado só como gateway), aí sim você pode usar NAT normal.
+    
+
+* * *
+
+### ✅ O que deve ficar no pfSense
+
+1. **Manter as regras de NO NAT** para as redes que precisam aparecer “com seus IPs reais” no Fortinet:
+  
+  * 10.0.0.0/24
+    
+  * 10.3.0.0/24
+    
+  * 10.4.0.0/23
+    
+  * 10.5.0.0/24(essas já estão corretas na sua tela!)
+    
+2. **Criar apenas UMA regra de NAT “normal” (mascaramento)** para casos em que:
+  
+  * Alguma rede precisa sair à internet sem passar pelo controle do Fortinet (ex.: um servidor do pfSense, atualizações, logs, ou outra subrede).
+    
+  * Nesse caso, configure NAT = Interface Address (WAN).
+    
+  * Mas cuidado: se aplicar a todas as redes, o Fortinet vai perder visibilidade dos IPs e o login individual não vai funcionar.
+    
+
+* * *
+
+📌 Resumindo:
+
+* Se **todos os usuários precisam ser autenticados no Fortinet**, então o pfSense deve ficar só com **NO NAT** (do jeito que já está) — ou seja, ele só roteia.
+  
+* Se **alguns hosts precisam sair sem autenticação**, aí sim você cria uma regra NAT “normal” só para essa rede/host.
+  
+
+* * *
+
+👉 Pergunta prática para ajustar a resposta:Você precisa que **todos os usuários internos façam login no Fortinet** (rede inteira controlada), ou só **algumas redes/usuários**?
+
+* * *
+
+Show, agora clareou totalmente o cenário 👍
+
+➡️ Você tem:
+
+* Redes **10.4.0.x / 10.4.1.x / 10.5.0.x** → desktops e Wi-Fi.
+  
+* Cada desktop já tem **MAC cadastrado** no servidor (provavelmente via DHCP estático no Windows Server ou no Fortinet).
+  
+* Quando o usuário conecta, o Fortinet usa **IP fixo + login** para controlar o acesso.
+  
+
+* * *
+
+### 🔎 Sobre o impacto no mapeamento por MAC
+
+Não, **não vai afetar** o mapeamento que já existe, porque:
+
+1. **O Fortinet precisa ver o IP real** de cada máquina (derivado do MAC).
+  
+  * E com o **NO NAT no pfSense**, isso continua funcionando, já que o pfSense apenas roteia o tráfego e **não troca o IP de origem**.
+2. O servidor 10.4.0.1 continua entregando sempre o mesmo IP para o mesmo MAC.
+  
+  * O Fortinet vai receber exatamente esse IP, do jeito que já funciona hoje.
+3. A autenticação do Fortinet também não muda.
+  
+  * O login individual continua aparecendo quando o usuário abre o navegador, só que agora **cada máquina terá que logar**, porque o Fortinet verá cada IP separadamente (e não tudo vindo do IP do pfSense).
+
+* * *
+
+✅ Portanto:
+
+* **O cadastro de MAC → IP fixo não será impactado.**
+  
+* **O Fortinet continuará controlando login individual**, já que você deixou as redes internas em **NO NAT** no pfSense.
+  
+* O pfSense passa a ser apenas o “roteador interno”, sem esconder os IPs.
+  
+
+* * *
+
+👉 Agora uma dúvida final para garantir que nada quebre:Seu pfSense está como **gateway padrão** dessas redes (10.4.x, 10.5.x), certo? Ou essas redes já saem direto no Fortinet e o pfSense só é usado como firewall extra?
+
+* * *
+
+Boa, então ficou claro:
+
+📌 **Situação atual**
+
+* Todos os desktops, servidores, impressoras etc. têm como **gateway padrão o pfSense (10.0.0.1)**.
+  
+* O pfSense, por sua vez, manda tudo para o **Fortinet**, que valida login individual antes de liberar a internet.
+  
+* Isso confirma que o **pfSense está roteando tudo**, e por isso o ajuste de NAT era realmente necessário.
+  
+
+* * *
+
+### ✅ Impacto na configuração que você fez
+
+* Como você aplicou **NO NAT** nas redes internas (10.4.0.0/23, 10.5.0.0/24, 10.3.0.0/24 etc.), o pfSense não troca mais os IPs de origem.
+  
+* Ou seja, o **Fortinet agora enxerga os IPs reais das máquinas** (que já estão amarrados ao MAC via DHCP).
+  
+* Assim, o Fortinet consegue aplicar a regra de login individual sem que tudo apareça como “um IP só” do pfSense.
+  
+
+👉 Isso significa que o **cadastro por MAC e IP não será alterado**.👉 O **login por usuário no Fortinet funcionará** normalmente, mas cada estação precisará logar com seu usuário individual.
+
+* * *
+
+### ⚠️ Só um ponto de atenção:
+
+O que pode estar te dando a **mão vermelha** na LAN/WAN não é o NAT, mas:
+
+1. **Rota de saída no pfSense**: a WAN do pfSense (200.196.184.130) talvez esteja configurada para sair direto na internet, em vez de sair pelo Fortinet.
+  
+  * O certo é a WAN do pfSense ter como **gateway o Fortinet**, e não a operadora.
+2. **Firewall rules** na aba LAN: precisam permitir tráfego da rede interna para “any” (ou pelo menos até o Fortinet).
+  
+
+* * *
+
+👉 Pergunto para confirmar:O IP **200.196.184.130** que aparece na WAN do pfSense, é um IP público da operadora **direto no pfSense**, ou é o IP interno que o Fortinet entrega para o pfSense?
+
+Isso vai mudar totalmente como devemos ajustar o **gateway** no pfSense.
+
+* * *
+
+Perfeito — vamos organizar tudo para você validar e deixar funcionando com segurança. Vou explicar o que **exatamente** precisa estar configurado (e onde checar) para que o fluxo
+
+**[desktops (10.4.x / 10.5.x)] → pfSense (gateway: 10.0.0.1) → Fortinet → Internet (200.196.x.x)**
+
+funcione com **NO NAT** (para que o Fortinet veja os IPs reais e peça login individual), e sem quebrar DHCP por MAC ou o acesso ao AD.
+
+* * *
+
+Resumo da ideia (em 1 frase)
+
+Se o pfSense não faz NAT, **o Fortinet precisa saber roteamento de volta** para as redes 10.x; o pfSense precisa ter **gateway apontando para o Fortinet**. Ambos os lados (pfSense e Fortinet) devem ter rotas coerentes e regras de firewall liberando o tráfego.
+
+* * *
+
+O que verificar / ajustar (passo-a-passo)
+
+### 1) Confirme qual é o _next-hop_ entre pfSense e Fortinet
+
+* No pfSense acesse: **Status > Interfaces** e veja o IP da **WAN** (ex.: `200.196.184.130`) e o **gateway** atribuído.
+  
+* Em **System > Routing > Gateways** confirme qual é o _default gateway_ da WAN.
+  
+  * **O gateway da WAN deve ser o IP do Fortinet** (o equipamento que fica “antes” do pfSense).
+    
+  * Se hoje o gateway está configurado direto para o roteador do provedor, edite-o para usar o Fortinet (IP no link WAN).
+    
+
+> Se você não souber qual IP usar como gateway, peça ao responsável do Fortinet/operadora o IP do próximo salto (o Fortinet ou roteador) para a sub-rede pública.
+
+* * *
+
+### 2) Rotas estáticas no Fortinet (obrigatórias se NO NAT)
+
+Como o pfSense vai **não NATear** as redes internas, o Fortinet precisa **saber como devolver o tráfego** para as sub-redes 10.x:
+
+No FortiGate (exemplo de preenchimento):
+
+* Destination: `10.4.0.0/23` → Gateway/Next Hop: `200.196.184.130` (o IP WAN do pfSense)
+  
+* Destination: `10.5.0.0/24` → Gateway/Next Hop: `200.196.184.130`
+  
+* Destination: `10.3.0.0/24` → Gateway/Next Hop: `200.196.184.130`
+  
+* Destination: `10.0.0.0/24` → Gateway/Next Hop: `200.196.184.130`
+  
+
+> Em suma: para cada rede interna que você colocou em **NO NAT**, crie uma rota no Fortinet apontando para o IP WAN do pfSense.
+
+* * *
+
+### 3) Regras NAT no pfSense (revisão)
+
+Você configurou regras **NO NAT** para as redes internas — ok. Mas mantenha **uma regra catch-all** (se precisar de saída sem controle) somente para hosts/ redes que você queira mascarar.No seu cenário, para **todos os desktops Wi-Fi e cabeados** você DEVE deixar **No NAT** (conforme já fez).
+
+* * *
+
+### 4) Firewall rules no pfSense
+
+No pfSense: **Firewall > Rules > LAN**:
+
+* Garanta uma regra que permita:
+  
+  * Action: **Pass**
+    
+  * Interface: **LAN**
+    
+  * Protocol: **Any**
+    
+  * Source: **LAN net** (ou as subnets específicas)
+    
+  * Destination: **any**
+    
+
+Sem isso, mesmo com rotas e NAT corretos, não passará tráfego.
+
+* * *
+
+### 5) Firewall / políticas no Fortinet
+
+* No FortiGate, a política que aplica o captive portal deve permitir tráfego **originado** das subnets 10.x para Internet e possuir autenticação de usuário habilitada.
+  
+* Se tiver política por IP / grupo, ajuste para incluir as subnets.
+  
+
+* * *
+
+### 6) DHCP estático por MAC (servidor 10.4.0.1) — sem impacto
+
+* Seu DHCP estático (bind MAC → IP) continua funcionando normalmente.
+  
+* Com **NO NAT**, o IP atribuído pelo DHCP é justamente o IP que o Fortinet verá — portanto **não é afetado**.
+  
+* Não precisa mudar os cadastros MAC→IP.
+  
+
+* * *
+
+Testes e diagnóstico (faça estes passos para validar)
+
+1. **Do pfSense (Diagnostics > Ping)**:
+  
+  * Ping `8.8.8.8` — verifica se o pfSense alcança a internet.
+    
+  * Ping o Gateway do Fortinet (next-hop) — verifica link entre pfSense e Fortinet.
+    
+2. **Do cliente (desktop)**:
+  
+  * `ipconfig /all` — confirme gateway = `10.4.0.1` e DNS.
+    
+  * `tracert 8.8.8.8` — o primeiro salto deve ser `10.4.0.1`, em seguida deve ir para o pfSense/WAN e depois Fortinet.
+    
+3. **Do Fortinet**:
+  
+  * Teste rota: ping para `10.4.0.33` (um host interno). Deve responder (se ICMP liberado).
+    
+  * Verifique tabela de rotas do Fortinet (`get router info routing-table` ou via GUI).
+    
+4. **Logs**:
+  
+  * pfSense: **Status > System Logs > Firewall** para ver se pacotes estão sendo bloqueados.
+    
+  * Fortinet: logs de autenticação/captive portal para ver se autenticação por IP está ocorrendo.
+    
+
+* * *
+
+Possíveis problemas comuns e soluções rápidas
+
+* **Fortinet não tem rota para 10.x → tráfego chega ao Fortinet, mas as respostas não retornam**→ Solução: adicionar rotas estáticas no Fortinet apontando para o IP WAN do pfSense.
+  
+* **pfSense gateway incorreto (não aponta para Fortinet)**→ Solução: ajustar **System > Routing > Gateways** para usar o IP do Fortinet como gateway.
+  
+* **Regras de firewall bloqueando tráfico**→ Solução: checar `Firewall > Rules > LAN` e criar regra "Pass" para LAN net → any (temporariamente para teste).
+  
+* **DNS / AD não resolvem**→ Certifique-se de que seus clientes usam os DNS internos do AD (10.4.0.9 etc.) e que pfSense não está forçando DNS externo via NAT/DNS forward.
+  
+
+* * *
+
+Exemplo prático (o que você deve fazer agora — checklist rápido)
+
+1. No pfSense: confirme WAN IP (200.196.184.130) e gateway. Se gateway ≠ Fortinet IP, altere para o Fortinet.
+  
+2. No Fortinet: adicione rotas estáticas para as redes internas apontando para `200.196.184.130` (IP WAN do pfSense).
+  
+3. No pfSense: mantenha suas regras **NO NAT** para 10.4.0.0/23, 10.5.0.0/24, etc.
+  
+4. No pfSense: confira **Firewall > Rules > LAN** e garanta regra Pass.
+  
+5. Teste a partir de um desktop: abra navegador, verifique se o captive portal do Fortinet aparece; faça login; verifique navegação.
+  
+6. Se não navegar, faça ping/trace a partir do pfSense para internet e a partir do Fortinet para um host 10.x.
+  
+
+* * *
+
+Se você quiser eu **posso gerar para você**:
+
+* os comandos/valores exatos a colocar no Fortinet (ex.: como ficaria a rota estática, com campos nome/destino/gateway), **ou**
+  
+* um roteiro clique-a-clique no pfSense para checar gateway, regras LAN e testes de ping.
+  
+
+Qual prefere agora? Quer que eu escreva as rotas estáticas prontas para você colar no Fortinet (me confirme qual é o IP do próximo-salto do Fortinet — pode ser .129 ou .128 como você disse) ou prefere o passo-a-passo no pfSense primeiro?
+
+* * *
+
+Este é um ótimo cenário, e a documentação que você já tem é bastante detalhada! Vou usá-la como base para criar um **guia prático e detalhado**, focando nos pontos de configuração do seu **pfSense** com base nas imagens que você enviou.
+
+O objetivo é garantir que o **pfSense** (gateway 10.0.0.1) envie o tráfego da LAN diretamente para o **Fortinet** (_next-hop_), e que o Fortinet possa devolver esse tráfego (já que o pfSense não fará **NAT**).
+
+* * *
+
+Análise das Configurações Atuais do pfSense
+
+Antes de tudo, vamos analisar as informações das suas imagens para ter certeza dos IPs e interfaces:
+
+### Status / Interfaces
+
+* **Interface LAN (bce1):**
+  
+  * **Endereço IP:** 10.0.0.1 (Este é o seu gateway de LAN, correto, e o que os clientes 10.4.x e 10.5.x devem usar).
+* **Interface WAN (bce0):**
+  
+  * **Endereço IP:** 200.196.184.130
+    
+  * **Gateway IPv4:** 200.196.184.129
+    
+
+### Gateways
+
+* **WANGW (Padrão):**
+  
+  * **Interface:** WAN
+    
+  * **Gateway:** 200.196.184.129 (O _next-hop_ para a Internet).
+    
+* **REDE_DHCP:**
+  
+  * **Interface:** LAN
+    
+  * **Gateway:** 10.0.0.2 (Provavelmente um gateway interno ou um IP não usado para o tráfego de Internet). **Este não deve ser o _default gateway_ para a Internet.**
+    
+
+### Regras / LAN (Firewall)
+
+* A regra 4a ("Default allow LAN to any rule") é um **Pass** para **IPv4** de **LAN subnets** para *** (any) destination** na **porta * (any)**. **Esta regra é essencial e está OK.** Ela permite que o tráfego da LAN (10.x.x.x) saia do pfSense.
+
+* * *
+
+# Modo de Configuração 02:
+
+Passo-a-Passo para a Configuração sem NAT
+
+Com base na sua análise e nas imagens, o maior ponto de atenção é garantir que o **Gateway WANGW** (200.196.184.129) seja o IP do seu **Fortinet**.
+
+### 1. Confirmar o Next-Hop (Gateway) da WAN
+
+**Objetivo:** Garantir que todo o tráfego que sai do pfSense pela interface WAN (200.196.184.130) seja enviado para o **Fortinet**. O IP do Fortinet deve ser o gateway 200.196.184.129.
+
+1. **Acesse:** **Sistema** → **Roteamento** → **Gateways**.
+  
+2. Confirme se o **Gateway** de nome **WANGW** (200.196.184.129) é o IP da **interface do Fortinet** conectada ao pfSense.
+  
+  * **Se for:** Ótimo, o pfSense está enviando o tráfego para o Fortinet. Não precisa fazer nada aqui.
+    
+  * **Se não for:** Você precisa **Editar** o gateway **WANGW** ou **Criar** um novo para apontar para o IP correto do Fortinet e torná-lo o _default gateway_ IPv4. _Pelos seus logs, o 200.196.184.129 é o gateway padrão, então vamos assumir que este é o Fortinet._
+    
+
+### 2. Rotas Estáticas no Fortinet (Obrigatoriedade do NO NAT)
+
+**Objetivo:** Como o pfSense não está fazendo NAT, o Fortinet precisa saber que para _responder_ ao tráfego vindo das redes 10.4.x.x ou 10.5.x.x, ele deve enviar a resposta de volta para o **IP WAN do pfSense (200.196.184.130)**.
+
+**Você deve configurar as seguintes rotas estáticas no seu Fortinet:**
+
+| Destino (Rede Interna) | Máscara | Gateway (Next Hop) | Interface | Descrição |
+| --- | --- | --- | --- | --- |
+| **10.4.0.0** | 255.255.254.0 (ou /23) | **200.196.184.130** (IP WAN do pfSense) | [Interface conectada ao pfSense] | Rota para LAN 10.4/23 |
+| **10.5.0.0** | 255.255.255.0 (ou /24) | **200.196.184.130** (IP WAN do pfSense) | [Interface conectada ao pfSense] | Rota para LAN 10.5/24 |
+| **10.0.0.0** | 255.255.255.0 (ou /24) | **200.196.184.130** (IP WAN do pfSense) | [Interface conectada ao pfSense] | Rota para Rede pfSense (LAN) |
+
+_**OBS:** Peça ao responsável pelo Fortinet para configurar estas rotas. Sem elas, o tráfego de saída funcionará, mas o tráfego de resposta da Internet morrerá no Fortinet, pois ele não saberá como chegar nas redes 10.x.x.x._
+
+### 3. Regras de NAT (Mantenha o NO NAT)
+
+**Objetivo:** Garantir que o pfSense _não_ mascare os IPs 10.x.x.x para que o Fortinet veja o IP real para aplicar o Captive Portal.
+
+* A regra de NO NAT deve ser configurada em **Firewall** → **NAT** → **Outbound** (Regras de Saída).
+  
+* Você mencionou que já configurou regras **NO NAT** para as redes internas (10.4.x/10.5.x).
+  
+* **Verifique se a regra _Automática_ (MASCARAR TUDO) está desativada ou se as suas regras NO NAT estão acima dela, com um "Stop processing rules" marcado (para garantir que não haja NAT).**
+  
+
+### 4. Regras de Firewall (LAN)
+
+**Objetivo:** Confirmar que o tráfego da LAN está livre para sair.
+
+1. **Acesse:** **Firewall** → **Regras** → **LAN**.
+  
+2. Confirme a existência e o _status_ (ativo/verde) da regra que permite o tráfego de saída:
+  
+  * **Regra em questão (4ª linha da sua imagem):**
+    
+    * **Ação:** Pass (Verde, ✓4.508K/4.18GiB)
+      
+    * **Protocolo:** IPv4 *
+      
+    * **Origem:** LAN subnets
+      
+    * **Destino:** * (any)
+      
+    * **Descrição:** Default allow LAN to any rule
+      
+  * **Status:** A regra está **ativa** e **funcionando**. **Nenhuma alteração é necessária aqui.**
+    
+
+* * *
+
+Testes e Diagnóstico (Checklist de Validação)
+
+Depois de garantir que as **Rotas Estáticas** foram configuradas no **Fortinet** (Passo 2), faça os seguintes testes:
+
+### No pfSense (Diagnóstico → Ping)
+
+1. **Ping o Gateway do Fortinet (Next-Hop):**
+  
+  * **Ping:** 200.196.184.129
+    
+  * **Resultado esperado:** Sucesso. (Verifica a conectividade direta entre pfSense e Fortinet).
+    
+2. **Ping a Internet:**
+  
+  * **Ping:** 8.8.8.8
+    
+  * **Resultado esperado:** Sucesso. (Verifica se o pfSense consegue sair para a Internet via Fortinet).
+    
+
+### No Cliente (Desktop 10.4.x ou 10.5.x)
+
+1. **Confirme o Gateway e DNS:**
+  
+  * Abra o terminal/prompt e use `ipconfig /all` ou `ip a`.
+    
+  * **Verifique:** O Gateway deve ser **10.0.0.1** e o DNS deve ser o seu **servidor AD (10.4.0.9 etc.)**.
+    
+2. **Teste o Roteamento:**
+  
+  * **`tracert 8.8.8.8`** (ou `traceroute 8.8.8.8` em Linux/macOS)
+    
+  * **Primeiro Salto:** 10.0.0.1 (pfSense LAN)
+    
+  * **Segundo Salto:** 200.196.184.130 (pfSense WAN)
+    
+  * **Terceiro Salto:** 200.196.184.129 (Fortinet)
+    
+  * **Resultado esperado:** Se o trace passar pelo Fortinet, o roteamento **NO NAT** está funcionando. Você deve ser direcionado para o Captive Portal do Fortinet no navegador.
+    
+
+### No Fortinet
+
+1. **Teste a Rota de Retorno:**
+  
+  * Ping para um host interno (ex.: 10.4.0.33).
+    
+  * **Resultado esperado:** Sucesso. (Confirma que as rotas estáticas que você adicionou estão funcionando).
+    
+
+Este roteiro detalhado, com foco na correção da rota no Fortinet e a validação do gateway no pfSense, deve garantir que seu ambiente funcione com segurança e visibilidade total dos IPs de origem.
+
+Ficou claro qual é a sua próxima ação, que é **garantir as rotas estáticas no Fortinet**, já que o pfSense está bem configurado para a saída?
+
+* * *
+
+Compreendo perfeitamente. Como você não tem acesso ao Fortinet, vamos focar no que é 100% controlável e essencial no seu pfSense para que o tráfego saia **sem NAT**.
+
+O ponto mais crucial para que o Fortinet veja os IPs reais (10.4.x.x e 10.5.x.x) é a configuração do **NAT de Saída (Outbound NAT)**.
+
+A sua configuração de Gateway e Regras LAN já foi validada e está correta para o fluxo. Agora, o passo final é garantir o **NO NAT**.
+
+* * *
+
+1. Configurar o NAT de Saída (Outbound NAT)
+
+* * *
+
+Por padrão, o pfSense faz NAT (mascaramento) em todo o tráfego que sai pela WAN, trocando o IP de origem 10.x.x.x pelo IP 200.196.184.130. Precisamos desativar isso para as suas redes internas.
+
+### A. Mudar para o Modo de Geração Manual de Regras
+
+1. **Acesse:** **Firewall** → **NAT** → **Outbound**.
+  
+2. No menu suspenso "Mode" (Modo), selecione a opção:Manual Outbound NAT rule generation (Avanc¸​ado)
+  
+3. Clique em **Salvar**.
+  
+
+Ao salvar, o pfSense deve gerar automaticamente as regras padrão. Agora, você pode adicionar a sua regra de **NO NAT** no topo.
+
+### B. Adicionar a Regra de NO NAT (Mapeamento Estático)
+
+Vamos adicionar uma regra para **NÃO** fazer NAT para as suas redes internas. Esta regra deve ser a **primeira da lista** ou estar acima de qualquer regra que faça NAT.
+
+1. Clique no botão **Adicionar** na aba **Mapeamentos**.
+  
+2. Preencha (ou verifique) os seguintes campos:
+  
+  * **Disable (Desabilitar):** _Deixar desmarcado._
+    
+  * **Interface:** **WAN** (O tráfego sai por aqui).
+    
+  * **Protocol:** **any**
+    
+  * **Source (Origem):**
+    
+    * **Network (Rede):** Insira a sua rede interna principal: `10.4.0.0/23`
+      
+    * _Opcional: Se tiver outras redes, crie regras separadas, como 10.5.0.0/24._
+      
+  * **Destination (Destino):**
+    
+    * **Network (Rede):** `any` (Qualquer destino na Internet).
+  * **Translation (Tradução/Alvo):**
+    
+    * **Type:** **None** (Este é o crucial **NO NAT**).
+3. Clique em **Salvar**.
+  
+4. Clique em **Apply Changes** (Aplicar Alterações) no topo da página.
+  
+
+Resultado Esperado:
+
+O tráfego das redes 10.4.0.0/23 e 10.5.0.0/24 sairá do pfSense com o IP de origem original.
+
+* * *
+
+2. Teste Final de Roteamento (Cliente)
+
+* * *
+
+Com a regra **NO NAT** aplicada, o pfSense está configurado corretamente. O teste de rastreamento de rota é a única maneira de confirmar se o Fortinet está recebendo o IP de origem correto.
+
+Execute este teste a partir de um desktop (10.4.x.x ou 10.5.x.x):
+
+| Comando | Resultado Esperado | Observação |
+| --- | --- | --- |
+| `tracert 8.8.8.8` | 1o salto: 10.0.0.1 (pfSense LAN) | Confirma que o gateway do cliente está correto. |
+|     | 2o salto: 200.196.184.129 (Fortinet Gateway) | Confirma que o tráfego vai direto para o Fortinet. |
+|     | 3o salto: IP do Provedor | O Fortinet está encaminhando o tráfego. |
+
+### Validação do Captive Portal
+
+Após o `tracert` ser bem-sucedido, tente acessar qualquer site no navegador do desktop:
+
+1. O navegador deve exibir a **página de login (Captive Portal)** do Fortinet.
+  
+2. Se a página de login aparecer, isso significa que:
+  
+  * O tráfego saiu do pfSense com o IP **10.x.x.x (NO NAT)**.
+    
+  * O Fortinet recebeu esse IP e, como não o conhece, acionou a autenticação.
+    
+
+Atenção - O Único Ponto de Falha Restante
+
+Como você não tem acesso ao Fortinet, o **único ponto de falha** restante é o **roteamento de retorno**.
+
+Se o login for bem-sucedido no Fortinet, mas você não conseguir navegar (o tráfego de resposta não volta), a causa é quase certamente a **falta das rotas estáticas** no Fortinet, conforme detalhei antes:
+
+* **Sintoma:** Você consegue fazer o `tracert` e ver a página de login, mas a navegação é lenta ou não funciona.
+  
+* **Causa:** O Fortinet sabe enviar o tráfego para a Internet, mas quando a Internet responde, o Fortinet não sabe que para chegar em 10.4.x.x, ele precisa enviar o pacote de volta para o IP WAN do pfSense (200.196.184.130).
+  
+* **Solução:** É necessário que o responsável pelo Fortinet adicione as rotas estáticas:
+  
+  > "Para redes 10.4.0.0/23 e 10.5.0.0/24, use o gateway 200.196.184.130."
+  
+
+Foque no Passo 1 (NAT Outbound). Ele é o suficiente no pfSense para que o Fortinet receba o tráfego com o IP de origem correto.
+
+* * *
+
+Perfeito — vou te passar **um roteiro passo-a-passo, direto e aplicável** (pfSense + FortiGate), usando os IPs que você mostrou. Siga cada etapa com calma e, se possível, aplique em horário de baixa produção (ou em janela de manutenção).
+
+* * *
+
+Resumo do objetivo
+
+Fazer com que o **Fortinet** enxergue os **IPs reais** dos clientes (10.x.x.x) para forçar **login individual** no captive portal, mantendo acesso interno (AD/DHCP) e internet funcionando. Para isso:
+
+* o **pfSense** deve **não NATear** as sub-redes de usuários (NO NAT);
+  
+* o **Fortinet** precisa ter **rotas estáticas** apontando para o **IP WAN do pfSense (200.196.184.130)** para devolver o tráfego às redes 10.x;
+  
+* o **pfSense** deve usar o **Fortinet** como gateway de saída.
+  
+
+* * *
+
+Passo a passo — pfSense
+
+### 1) Conferir gateway WAN (pfSense → Fortinet)
+
+1. `System > Routing > Gateways`
+  
+2. Verifique que o gateway `WANGW` está com **Gateway = 200.196.184.129** (na sua print está assim).
+  
+3. Em **Gateway padrão IPv4** selecione `WANGW` (ou deixe em _Automatic_ se já apontar corretamente).
+  
+4. Salve.
+  
+
+> Observação: o gateway da WAN deve ser o IP do Fortinet/next-hop (no seu caso `200.196.184.129`). Se já está assim, ok.
+
+* * *
+
+### 2) Outbound NAT — deixar NO NAT para as redes de usuários
+
+1. `Firewall > NAT > Outbound`
+  
+2. Seleccione **Manual Outbound NAT** (ou **Hybrid** se quiser manter regras automáticas para VPNs).
+  
+3. Para cada faixa de rede de usuários (faça por rede, não por host) adicione uma regra **NO NAT**:
+  
+
+Exemplo (adicionar regra):
+
+* **Interface:** `WAN`
+  
+* **Source / Tipo:** `Network` (ou `Network or Alias`)
+  
+* **Source / Rede:** `10.4.0.0/23` _(isso cobre 10.4.0.xxx e 10.4.1.xxx)_
+  
+* **Destination:** `any`
+  
+* **Translation / Address:** `None` (No NAT)
+  
+* **Descrição:** `No NAT 10.4.0.0/23 para Fortinet`
+  
+
+Repita para:
+
+* `10.5.0.0/24`
+  
+* `10.3.0.0/24`
+  
+* `10.0.0.0/24` (ou as máscaras reais que você usa)
+  
+
+4. Salve e **Apply Changes**.
+
+> IMPORTANTE: mantenha apenas **NO NAT** para as redes que devem autenticar no Fortinet. Se você depender de NAT para alguma rede específica (por exemplo um servidor que precisa sair com IP público), crie regra específica para isso (mas não para as redes de desktops/wi-fi).
+
+* * *
+
+### 3) Verificar regras de firewall (LAN)
+
+1. `Firewall > Rules > LAN`
+  
+2. Garanta que exista uma regra **Pass** permitindo `LAN subnets → any` (ou regras equivalentes que permitam tráfego para internet).
+  
+  * Action: **Pass**
+    
+  * Interface: **LAN**
+    
+  * Protocol: **any**
+    
+  * Source: **LAN net** (ou os subnets)
+    
+  * Destination: **any**
+    
+3. Salve e aplique.
+  
+
+* * *
+
+### 4) Reiniciar estados (limpar estados antigos)
+
+1. `Diagnostics > States > Reset States` — clique para reiniciar estados do PF.
+  
+  * Isso evita que sessões antigas NATeadas continuem bloqueando tráfego novo.
+
+* * *
+
+### 5) Testes iniciais no pfSense
+
+* Em `Diagnostics > Ping` do pfSense:
+  
+  * Ping `200.196.184.129` (gateway Fortinet) — deve responder.
+    
+  * Ping `8.8.8.8` — deve responder (se o Fortinet estiver permitindo tráfego).Se o pfSense não consegue pingar o gateway, corrija gateway/ligação física antes de prosseguir.
+    
+
+* * *
+
+Passo a passo — Fortinet (rotas estáticas)
+
+> Objetivo: dizer ao FortiGate **como voltar** às redes internas (10.x) — encaminhando para o pfSense WAN (200.196.184.130).
+
+### 1) Adicionar rotas estáticas (GUI genérico)
+
+No FortiGate (GUI):
+
+* Vá em **Network > Static Routes** (ou Router > Static > Static Routes) → **Create New**.
+
+Para cada rede, preencha:
+
+* **Destination**: `10.4.0.0/23`
+  
+* **Device / Interface**: interface conectada ao seu link com pfSense (ex.: `portX` ou `wanx`)
+  
+* **Gateway**: `200.196.184.130` _(IP WAN do pfSense)_
+  
+* **Distance**: `10` (ou default)
+  
+
+Repita para:
+
+* `10.5.0.0/24` → gateway `200.196.184.130`
+  
+* `10.3.0.0/24` → gateway `200.196.184.130`
+  
+* `10.0.0.0/24` → gateway `200.196.184.130`
+  
+
+Salve.
+
+### 2) Verificar política do captive portal
+
+* A política que exige o login no Fortinet deve aceitar tráfego com **source = subnets 10.x**.
+  
+* Normalmente você tem uma policy `LAN (internal) → Internet` onde ativa autenticação. Verifique se essa policy cobre as sub-redes 10.4.x / 10.5.x / 10.3.x.
+  
+
+* * *
+
+Testes práticos e diagnóstico (faça nessa ordem)
+
+1. **Do pfSense** (Diagnostics > Ping):
+  
+  * `ping 200.196.184.129` (gateway Fortinet) → OK
+    
+  * `ping 8.8.8.8` → OK (se Fortinet permitir)
+    
+2. **Do desktop** (ex.: 10.4.0.33):
+  
+  * `ipconfig /all` → confirme gateway = `10.4.0.1` e DNS = 10.4.0.9 (ou seu DNS interno).
+    
+  * Tente `ping 8.8.8.8` → **antes de autenticar no Fortinet**, deverá falhar.
+    
+  * Abra navegador → captive portal do Fortinet deve aparecer → faça login com usuário.
+    
+  * Após autenticar: `ping 8.8.8.8` e `curl http://ifconfig.me` (ou acessar sites) → OK.
+    
+3. **Se algo não funcionar**:
+  
+  * No pfSense: `Status > System Logs > Firewall` e `Diagnostics > States` → ver bloqueios/estados.
+    
+  * No Fortinet: logs de roteamento e logs do captive portal.
+    
+  * Teste `traceroute` a partir do desktop para 8.8.8.8:
+    
+    * 1º salto: 10.4.0.1 (DHCP server/router local)
+      
+    * 2º salto: pfSense LAN/WAN (deve aparecer)
+      
+    * etc.
+      
+
+* * *
+
+Pontos de atenção / riscos e como mitigar
+
+* **Bloqueio de RFC1918 na WAN do pfSense?**A regra padrão “Bloquear redes privadas” na interface WAN não impede o funcionamento normal do retorno (porque o estado foi criado pelo cliente interno). Normalmente não precisa desativar. Só se o Fortinet enviar tráfego com origem RFC1918 direto ao pfSense e houver políticas específicas, reveja.
+  
+* **IP do gateway errado** → se o gateway do pfSense não for o Fortinet, o tráfego não chegará ao Fortinet. Confirme `System > Routing > Gateways`.
+  
+* **Se usar IPsec/serviços que dependem de NAT**, mantenha a regra ISAKMP (porta 500) que o pfSense cria automaticamente.
+  
+* **Sincronização HA / XMLRPC**: se tiver cluster pfSense, marque `No XMLRPC Sync` conforme necessário.
+  
+
+* * *
+
+Checklist final (faça e confirme cada item)
+
+* `System > Routing > Gateways`: gateway WAN = `200.196.184.129` (Fortinet).
+  
+* `Firewall > NAT > Outbound`: Manual (ou Hybrid) com regras **NO NAT** para `10.4.0.0/23`, `10.5.0.0/24`, `10.3.0.0/24`, `10.0.0.0/24`.
+  
+* `Firewall > Rules > LAN`: existe regra **allow LAN subnets → any**.
+  
+* `Diagnostics > States > Reset States` executado.
+  
+* FortiGate: rotas estáticas para todas as 10.x apontando para `200.196.184.130` (WAN do pfSense).
+  
+* Teste: cliente tenta acessar → captive portal aparece → após login navega normalmente.
+  
+
+* * *
+
+Se quiser eu já **te escrevo as rotas prontas** para colar no FortiGate (GUI + CLI exemplo) e **o JSON/formulário exato** para cada regra NO NAT no pfSense (linha por linha) — me diga se prefere **comandos CLI do FortiGate** ou apenas instruções GUI.Também posso montar um mini-script/checklist para você rodar logo após aplicar as mudanças (pings/traceroutes/onde olhar logs). Quer que eu gere isso agora?
