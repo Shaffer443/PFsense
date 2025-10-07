@@ -1833,4 +1833,80 @@ Depois na regra Outbound NAT → `Source = [Nome do Alias]` e `Destination = 0.0
 
 Quer que eu já te monte o **alias com as redes** e a **regra única pronta** (fica mais limpo do que várias repetidas)?
 
+---
+
+Show 👍 bora simplificar. Você pode resolver com **1 Alias + 1 regra de Outbound NAT**.
+
+* * *
+
+### Passo 1 → Criar o **Alias**
+
+No pfSense:
+
+1. Vá em **Firewall > Aliases > IP**.
+
+2. Clique em **Add**.
+
+3. Preencha:
+   
+   * **Name:** `REDE_LOCAL`
+   
+   * **Type:** `Network(s)`
+   
+   * **Networks:**
+     
+     * `10.0.0.0/24`
+     
+     * `10.3.0.0/24`
+     
+     * `10.4.0.0/23` (cobre `10.4.0.x` e `10.4.1.x`)
+     
+     * `10.5.0.0/24`
+   
+   * **Description:** `Todas as redes internas`
+
+4. Salve e aplique.
+
+* * *
+
+### Passo 2 → Criar a **regra Outbound NAT (No NAT)**
+
+1. Vá em **Firewall > NAT > Outbound**.
+
+2. Mude o modo para **Manual Outbound NAT** (se já não estiver).
+
+3. Clique em **Add** (+).
+
+4. Configure:
+   
+   * **Interface:** `WAN`
+   
+   * **Source:** `REDE_LOCAL` (alias que você criou)
+   
+   * **Source Port:** `any`
+   
+   * **Destination:** `Network`
+   
+   * **Address:** `0.0.0.0/0`
+   
+   * **Destination Port:** `any`
+   
+   * **Translation / Address:** `None (no NAT)`
+   
+   * **Descrição:** `No NAT para redes internas → Internet via Fortinet`
+
+5. Salve e **Apply Changes**.
+
+* * *
+
+✅ Com isso:
+
+* Todas as redes internas (`10.0`, `10.3`, `10.4`, `10.5`) vão sair para o Fortinet **sem NAT do pfSense**.
+
+* O Fortinet (200.196.x.x) continua responsável pelo login individual e NAT de saída real.
+
+* * *
+
+Quer que eu te monte também uma **regra extra** para que apenas as redes **LAN internas** saiam SEM NAT, mas se um dia você precisar usar o pfSense sozinho (sem o Fortinet), ele ainda tenha uma regra fallback NAT?
+
 
