@@ -1970,4 +1970,93 @@ A ideia é você ter **duas camadas** de regra Outbound NAT:
 
 Quer que eu te monte o **passo a passo com prints simulados** (valores exatos nos campos do pfSense) para você só copiar e colar, ou prefere em formato de **export de config XML** que você importa direto no pfSense?
 
+---
+
+Perfeito, agora entendi o ponto 👍
+
+Na tela que você me mostrou (essa de edição da regra avançada), você está editando uma regra de **No NAT**.  
+Por isso o pfSense não mostra o campo **Translation / Endereço NAT**, já que essa opção está desabilitada quando você marca **Não faça NAT**.
+
+👉 Ou seja:
+
+* Essa tela serve apenas para a **Regra 1 (No NAT)**.
+
+* Para criar a **Regra 2 (Fallback NAT)**, você precisa criar **uma nova regra**, mas **sem marcar** a opção **Não faça NAT**.
+
+* * *
+
+### Como fazer a **Regra 2 (Fallback NAT)**
+
+1. Vá em **Firewall > NAT > Saída**.
+
+2. Clique em **+Adicionar** para criar uma nova regra.
+
+3. Preencha assim:
+* **Interface:** `WAN`
+
+* **Família de endereço:** `IPv4`
+
+* **Protocolo:** `Qualquer`
+
+* **Fonte:** `LAN net` (ou melhor: um alias com todas suas redes internas: 10.0.0.0/24, 10.3.0.0/24, 10.4.0.0/23, 10.5.0.0/24)
+
+* **Destino:** `Qualquer`
+
+* **Endereço de Tradução (Translation Address):** `Interface Address` (WAN – 200.196.184.130)
+
+* **Descrição:** `Fallback NAT → WAN`
+
+* * *
+
+### Resultado final esperado:
+
+* **Primeira regra:** No NAT (sem tradução, tráfego passa para o Fortinet).
+
+* **Segunda regra (fallback):** NAT normal, saindo pelo IP da WAN, caso necessário.
+
+🔺 Lembre-se: a ordem importa → a regra **No NAT** deve ficar **acima** da regra de fallback.
+
+* * *
+
+Boa! Agora ficou claro 👍.
+
+Esse **passo 2 (No NAT)** que falamos antes você já está exatamente na tela certa — só que no print que você mandou tem duas opções marcadas que não devem estar juntas:
+
+* **Desabilitado** ❌ → não deve estar marcado (senão a regra nunca entra em ação).
+
+* **Não faça NAT** ✅ → esse sim deve ficar marcado, porque é justamente o que cria o _No NAT_.
+
+* * *
+
+### Como preencher o **Passo 2 – No NAT**
+
+1. Desmarque **Desabilitar essa regra**.
+
+2. Deixe marcado **Não faça NAT**.
+
+3. Configure assim:
+* **Dispositivo:** `WAN`
+
+* **Família de endereço:** `IPv4`
+
+* **Protocolo:** `Qualquer`
+
+* **Fonte (Source):** → aqui você escolhe a rede que NÃO vai ser mascarada (ex.: `10.4.0.0/23`, ou se tiver várias, cria uma regra pra cada rede).
+
+* **Destino (Destination):** `Qualquer` (se o pfSense não deixar `any`, você pode colocar `*` ou `0.0.0.0/0`).
+
+* **Tradução / Endereço NAT:** não aparece (porque está em modo "No NAT").
+
+* **Descrição:** algo como `No NAT 10.4.0.0/23 → Fortinet`.
+
+* * *
+
+👉 Isso é o **Passo 2 (No NAT)**: o tráfego dessas redes internas vai sair “cru”, sem ser NATeado pelo pfSense, e vai chegar no Fortinet, que é quem vai aplicar o login.
+
+Depois, logo **abaixo dessa regra**, você cria a **Fallback NAT** (que vai fazer NAT normal para a WAN Address).
+
+* * *
+
+Quer que eu te mande um exemplo pronto de como ficaria a tabela de regras (com as duas: No NAT e Fallback) igualzinho ao que apareceria no pfSense?
+
 
