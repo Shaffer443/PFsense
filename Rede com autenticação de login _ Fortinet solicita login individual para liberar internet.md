@@ -1909,4 +1909,65 @@ No pfSense:
 
 Quer que eu te monte também uma **regra extra** para que apenas as redes **LAN internas** saiam SEM NAT, mas se um dia você precisar usar o pfSense sozinho (sem o Fortinet), ele ainda tenha uma regra fallback NAT?
 
+---
+
+Boa 👌  
+A ideia é você ter **duas camadas** de regra Outbound NAT:
+
+1. **No NAT** → quando o tráfego for das redes internas para a WAN (passa pelo Fortinet).
+
+2. **NAT normal (fallback)** → se um dia o pfSense precisar sair direto pra Internet sem Fortinet, ele faz NAT pelo IP da WAN (200.196.184.130).
+
+* * *
+
+### 🔹 Como configurar no pfSense
+
+#### 1. Regra de **No NAT** (já falamos, mas recapitulando):
+
+* **Interface:** `WAN`
+
+* **Source:** `REDE_LOCAL` (alias com 10.0.0.0/24, 10.3.0.0/24, 10.4.0.0/23, 10.5.0.0/24)
+
+* **Destination:** `0.0.0.0/0`
+
+* **Translation Address:** `None (no NAT)`
+
+* **Descrição:** `No NAT → Redes internas passam pelo Fortinet`
+
+* * *
+
+#### 2. Regra de **NAT Fallback**:
+
+* **Interface:** `WAN`
+
+* **Source:** `LAN net` (ou `REDE_LOCAL` também, se quiser cobrir todas)
+
+* **Destination:** `any`
+
+* **Translation Address:** `Interface Address` (WAN do pfSense → 200.196.184.130)
+
+* **Descrição:** `Fallback NAT → pfSense sai direto pra Internet`
+
+* * *
+
+⚠️ Importante:
+
+* A **ordem das regras** no pfSense Outbound NAT conta!
+
+* A regra **No NAT** tem que ficar **acima** da regra fallback.
+
+* O pfSense lê de cima para baixo e aplica a primeira que casar com o tráfego.
+
+* * *
+
+✅ Assim, no cenário atual:
+
+* Todo mundo sai pelo Fortinet → sem NAT no pfSense.
+
+* Se um dia o Fortinet cair ou for removido, você só precisa **desabilitar a No NAT** e o fallback NAT já funciona automaticamente.
+
+* * *
+
+Quer que eu te monte o **passo a passo com prints simulados** (valores exatos nos campos do pfSense) para você só copiar e colar, ou prefere em formato de **export de config XML** que você importa direto no pfSense?
+
 
